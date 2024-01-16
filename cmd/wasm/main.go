@@ -2,259 +2,102 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"strings"
-	"syscall/js"
 
-	"github.com/tidwall/btree"
+	"github.com/google/btree"
 	"github.com/xwb1989/sqlparser"
 )
 
-type Service[T interface{}] interface {
-	SQL(sql *SQL) js.Func
+// TreeNode represents a node in the btree.
+type TreeNode struct {
+	Key   string
+	Value string
 }
 
-type Database[T interface{}] struct {
-	tree *btree.Map[string, string]
+// BTree is a custom btree structure for holding SQL nodes.
+type BTree struct {
+	*btree.BTree
 }
 
-func NewDatabaseService[T any](tree *btree.Map[string, string]) Service[T] {
-	return Database[T]{
-		tree: tree,
-	}
+// Less implements the btree.Item interface.
+func (a TreeNode) Less(b btree.Item) bool {
+	return a.Key < b.(*TreeNode).Key
+}
+
+type DatabaseService struct {
+	// Your DatabaseService fields go here.
 }
 
 type SQL struct {
-	key   string
-	value string
+	Query string
 }
 
-type Customers struct {
-	Name string
-	Age  int
+func NewDatabaseService() *DatabaseService {
+	return &DatabaseService{}
 }
 
-func (d Database[T]) SQL(sql *SQL) js.Func {
-	return js.FuncOf(func(this js.Value, args []js.Value) interface{} {
-		if len(args) == 0 {
-			return nil
+func (ds *DatabaseService) ParseAndBuildTree(sqlQuery string) *BTree {
+	tree := btree.New(2)
+
+	r := strings.NewReader(sqlQuery)
+
+	tokens := sqlparser.NewTokenizer(r)
+	for {
+		stmt, err := sqlparser.ParseNext(tokens)
+		if err == io.EOF {
+			break
 		}
-		sqlQuery := args[0]
-		queryAtts := parseQuery(sqlQuery.String())
-
-		d.execQuery(queryAtts)
-
-		return nil
-	})
-}
-
-func (d Database[T]) execQuery(queryAtts QueryAttributes) {
-	if queryAtts.TableName == "" {
-		fmt.Println("Table name is required")
-		return
-	} else {
-		fmt.Println("Table name is", queryAtts.TableName)
+		ds.buildTree(stmt, tree)
 	}
 
-	switch strings.ToUpper(queryAtts.Action) {
-	case "SELECT":
-		fmt.Println("SELECT")
-		if queryAtts.WhereClause != "" {
-			fmt.Println("WHERE", queryAtts.WhereClause)
-		}
-
-		if queryAtts.Limit != "" {
-			fmt.Println("LIMIT", queryAtts.Limit)
-		}
-
-		if queryAtts.SelectQuery == nil {
-			fmt.Println("No columns provided")
-		} else {
-			fmt.Println("SELECT ", queryAtts.SelectQuery)
-		}
-
-		if queryAtts.TableName != "" {
-			fmt.Println("FROM", queryAtts.TableName)
-		}
-
-		d.tree.Scan(func(k string, v string) bool {
-			fmt.Printf("FOUND IN DB %+v\n", v)
-			return true
-		})
-
-	case "INSERT":
-		fmt.Println("INSERT")
-		fmt.Println("INTO", queryAtts.TableName)
-		fmt.Println("VALUES", queryAtts.Values)
-		fmt.Println("COLUMNS", queryAtts.Columns)
-
-		if queryAtts.Values == nil {
-			fmt.Println("No values provided")
-			return
-		}
-
-		c := Customers{}
-
-		for i := 0; i < len(queryAtts.Columns); i++ {
-			switch queryAtts.Columns[i] {
-			// case "id":
-			// 	c.Id = queryAtts.Values[i+1].(string)
-			case "name":
-				c.Name = queryAtts.Values[i+1].(string)
-			case "age":
-				c.Age = queryAtts.Values[i+1].(int)
-			}
-		}
-		// id := uuid.New().String()
-
-		d.tree.Set("1", c.Name)
-		g, _ := d.tree.Get("1")
-		fmt.Printf("%+v\n", g)
-
-		d.tree.Scan(func(k string, v string) bool {
-			fmt.Printf("%+v\n", v)
-			return true
-		})
-
-	// case "UPDATE":
-	// 	fmt.Println("UPDATE")
-	// 	fmt.Println("SET", queryAtts.Values)
-	// 	if queryAtts.Conditions != "" {
-	// 		fmt.Println("WHERE", queryAtts.Conditions)
-	// 	}
-	// 	if queryAtts.TableName != "" {
-	// 		fmt.Println("FROM", queryAtts.TableName)
-	// 	}
-	// 	if queryAtts.Values == nil {
-	// 		fmt.Println("No values provided")
-	// 		return
-	// 	}
-	//
-	// 	if queryAtts.Conditions != "" {
-	// 		fmt.Println("WHERE", queryAtts.Conditions)
-	// 	}
-	//
-	// 	for i := 0; i < len(queryAtts.Values); i += 2 {
-	// 		tree.Set(queryAtts.Values[i], queryAtts.Values[i+1])
-	// 	}
-	//
-	// case "DELETE":
-	// 	fmt.Println("DELETE")
-	// 	if queryAtts.Conditions != "" {
-	// 	}
-	// 		fmt.Println("WHERE", queryAtts.Conditions)
-	// 	if queryAtts.TableName != "" {
-	// 		fmt.Println("FROM", queryAtts.TableName)
-	// 	}
-
-	default:
-		fmt.Println("Unsupported SQL statement type")
-	}
+	return &BTree{tree}
 }
 
-type QueryAttributes struct {
-	Action    string
-	TableName string
-	Column    string
-	Columns   []string
-	Values    []any
-
-	Conditions  string
-	WhereClause string
-	Limit       string
-	SelectQuery []string
-}
-
-func parseQuery(sqlQuery string) QueryAttributes {
-	stmt, err := sqlparser.Parse(sqlQuery)
-	if err != nil {
-		fmt.Println("Failed to parse SQL query", err)
-	}
-
-	queryAttributes := QueryAttributes{}
-
-	switch stmt := stmt.(type) {
+func (ds *DatabaseService) statementType(stmt sqlparser.Statement) string {
+	switch stmt.(type) {
 	case *sqlparser.Select:
-		queryAttributes.Action = "SELECT"
-		if stmt.From != nil && stmt.From[0] != nil {
-			queryAttributes.TableName = sqlparser.String(stmt.From[0])
-
-		}
-		if len(stmt.SelectExprs) == 1 {
-			if _, ok := stmt.SelectExprs[0].(*sqlparser.StarExpr); ok {
-				queryAttributes.SelectQuery = append(queryAttributes.SelectQuery, "*")
-			}
-		} else {
-			for _, expr := range stmt.SelectExprs {
-				queryAttributes.SelectQuery = append(queryAttributes.SelectQuery, sqlparser.String(expr))
-			}
-		}
-		if stmt.Where != nil {
-			whereExpr := sqlparser.String(stmt.Where.Expr)
-			queryAttributes.WhereClause = whereExpr
-		}
-
-		// Check for LIMIT clause
-		if stmt.Limit != nil {
-			limitValue := sqlparser.String(stmt.Limit)
-			queryAttributes.Limit = limitValue
-		}
-
+		return "SELECT"
 	case *sqlparser.Insert:
-		queryAttributes.Action = "INSERT"
-		queryAttributes.TableName = sqlparser.String(stmt.Table)
-
-		// Extract column names
-		for _, col := range stmt.Columns {
-			queryAttributes.Columns = append(queryAttributes.Columns, sqlparser.String(col))
-		}
-
-		// Extract values
-		for _, row := range stmt.Rows.(sqlparser.Values) {
-			for _, expr := range row {
-				queryAttributes.Values = append(queryAttributes.Values, sqlparser.String(expr))
-			}
-		}
-
-	// case *sqlparser.Update:
-	// 	queryAttributes.Action = "UPDATE"
-	// 	queryAttributes.TableName = sqlparser.String(stmt.Table)
-	//
-	// 	// Extract column names and values from SET clause
-	// 	for _, assignment := range stmt.SetExprs {
-	// 		queryAttributes.Values = append(queryAttributes.Values, sqlparser.String(assignment.Left))
-	// 		queryAttributes.Values = append(queryAttributes.Values, sqlparser.String(assignment.Right))
-	// 	}
-	//
-	// 	// Extract conditions from WHERE clause
-	// 	if stmt.Where != nil {
-	// 		queryAttributes.Conditions = sqlparser.String(stmt.Where.Expr)
-	// 	}
-	//
-	// case *sqlparser.Delete:
-	// 	queryAttributes.Action = "DELETE"
-	// 	queryAttributes.TableName = sqlparser.String(stmt.Table)
-	//
-	// 	// Extract conditions from WHERE clause
-	// 	if stmt.Where != nil {
-	// 		queryAttributes.Conditions = sqlparser.String(stmt.Where.Expr)
-	// 	}
-
+		return "INSERT"
+	case *sqlparser.Update:
+		return "UPDATE"
+	case *sqlparser.Delete:
+		return "DELETE"
+	// Add more cases for other statement types as needed.
 	default:
-		fmt.Println("Unsupported SQL statement type")
+		return "UNKNOWN"
+	}
+}
+
+func (ds *DatabaseService) buildTree(stmt sqlparser.Statement, tree *btree.BTree) {
+	node := &TreeNode{
+		Key:   ds.statementType(stmt),
+		Value: sqlparser.String(stmt),
 	}
 
-	return queryAttributes
+	tree.ReplaceOrInsert(node)
 }
 
 func main() {
 	fmt.Println("Web Assembly")
-	var users btree.Map[string, string]
+	ds := NewDatabaseService()
 
-	f := NewDatabaseService[string](&users)
+	execSQL := func(query string) {
+		tree := ds.ParseAndBuildTree(query)
 
-	execSQL := f.SQL(&SQL{})
-	js.Global().Set("execSQL", execSQL)
+		// Do something with the tree.
+		// You can print the tree, store it, or perform operations based on your needs.
+		tree.Ascend(func(item btree.Item) bool {
+			node := item.(*TreeNode)
+			fmt.Printf("Key: %s, Value: %s\n", node.Key, node.Value)
+			return true
+		})
+	}
 
-	// prevent the program from exiting
+	// Example usage
+	execSQL("SELECT * FROM users WHERE id = 1")
+
+	// Prevent the program from exiting
 	select {}
 }
