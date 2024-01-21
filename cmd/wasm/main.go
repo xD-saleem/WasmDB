@@ -57,17 +57,16 @@ func (ds *DatabaseService) execSql(sql string) {
 
 func main() {
 	fmt.Println("Web Assembly")
-	// var tree btree.Map[string, string]
-	tree := btree.New(2)
-	ds := NewDatabaseService(tree)
+	treePtr := btree.New(2)
+	ds := NewDatabaseService(treePtr)
 
 	execSQL := func(query string) {
 		ds.execSql(query)
 	}
-
 	execSQL("INSERT INTO Customers (CustomerName, ContactName, Address, City, PostalCode, Country) VALUES ('Cardinal', 'Tom B. Erichsen', 'Skagen 21', 'Stavanger', '4006', 'Norway');")
+
 	// Example usage
-	execSQL("SELECT * FROM Customer WHERE CustomerName = 'Cardinal' AND City = Stavange;")
+	execSQL("SELECT * FROM Customer WHERE CustomerName = 'Cardinal';")
 
 	// Prevent the program from exiting
 	select {}

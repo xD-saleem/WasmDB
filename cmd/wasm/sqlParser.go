@@ -167,28 +167,33 @@ func (ds *DatabaseService) execAction(action *Action) {
 	case "SELECT":
 		fmt.Println("Executing SELECT action:", action)
 
-		var foundNodes []Node
+		var foundNodes = make(map[string]int)
+
+		var foundNodes2 []Node
+
 		valueToFind := action.Conditions
 		sv := getStructValues(valueToFind[0])
 
-		fmt.Println("sv", sv)
 		// Iterate over the tree
+
+		mapSize := len(sv)
 
 		ds.Btree.Ascend(func(item btree.Item) bool {
 			node := item.(Node)
-			for k, v := range sv {
-				println("node.val[k]", node.val[k], "v ", v)
 
+			for k, v := range sv {
+				fmt.Println("k", k, "v", v, "= ", node.val[k])
 				if v == node.val[k] {
-					foundNodes = append(foundNodes, node)
+					foundNodes[k] = foundNodes[k] + 1
+					foundNodes2 = append(foundNodes2, node)
 				}
 			}
 			return true
 		})
 
 		// Check if any nodes were found
-		if len(foundNodes) > 0 {
-			fmt.Println("Found nodes:", foundNodes)
+		if len(foundNodes) == mapSize {
+			fmt.Println("Found nodes:", foundNodes2)
 		} else {
 			fmt.Println("No nodes found with the specified value.")
 		}
@@ -207,21 +212,19 @@ func (ds *DatabaseService) execAction(action *Action) {
 }
 
 func getStructValues(s string) dynamicValue {
-	fmt.Println("@@@ getStructValues ", s)
-	// Regex to extract column names and getStructValues
-
-	s = strings.ReplaceAll(s, "and", "")
-	fmt.Println("@@@ getStructValues ", s)
-
 	columns := []string{}
 	values := []string{}
 
-	// Process the matches
-	// for _, match := range matches {
-	// 	fmt.Println("@@@@ match", match)
-	// 	columns = append(columns, match[1])
-	// 	values = append(values, match[2])
-	// }
+	s = strings.ReplaceAll(s, "and", "")
+	s = strings.ReplaceAll(s, "'", "")
+	s = strings.ReplaceAll(s, ";", "")
+
+	d := strings.Split(s, "  ")
+	for _, v := range d {
+		s := strings.Split(v, " = ")
+		columns = append(columns, s[0])
+		values = append(values, s[1])
+	}
 
 	return createDynamicStruct(columns, values)
 }
