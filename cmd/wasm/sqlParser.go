@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/google/btree"
@@ -170,23 +169,16 @@ func (ds *DatabaseService) execAction(action *Action) {
 
 		var foundNodes []Node
 		valueToFind := action.Conditions
-		for _, v := range valueToFind {
-			fmt.Println("NOOOOOOOOOOOO", v)
-		}
 		sv := getStructValues(valueToFind[0])
+
 		fmt.Println("sv", sv)
 		// Iterate over the tree
 
 		ds.Btree.Ascend(func(item btree.Item) bool {
 			node := item.(Node)
-			// for k, v := range node.val {
-			// 	fmt.Println("k", k, "v", v, "sv[k]", sv[k], v == sv[k])
-			// 	if v == sv[k] {
-			// 		foundNodes = append(foundNodes, node)
-			// 	}
-			// }
 			for k, v := range sv {
-				fmt.Println("k", k, "v", v, "sv[k]", sv[k], v == sv[k])
+				println("node.val[k]", node.val[k], "v ", v)
+
 				if v == node.val[k] {
 					foundNodes = append(foundNodes, node)
 				}
@@ -215,23 +207,21 @@ func (ds *DatabaseService) execAction(action *Action) {
 }
 
 func getStructValues(s string) dynamicValue {
-	// Define a regular expression pattern to match column and value pairs
-	pattern := `([a-zA-Z_]+)\s*=\s*'([^']*)'`
+	fmt.Println("@@@ getStructValues ", s)
+	// Regex to extract column names and getStructValues
 
-	// Compile the regular expression
-	re := regexp.MustCompile(pattern)
-
-	// Find all matches in the input string
-	matches := re.FindAllStringSubmatch(s, -1)
+	s = strings.ReplaceAll(s, "and", "")
+	fmt.Println("@@@ getStructValues ", s)
 
 	columns := []string{}
 	values := []string{}
 
 	// Process the matches
-	for _, match := range matches {
-		columns = append(columns, match[1])
-		values = append(values, match[2])
-	}
+	// for _, match := range matches {
+	// 	fmt.Println("@@@@ match", match)
+	// 	columns = append(columns, match[1])
+	// 	values = append(values, match[2])
+	// }
 
 	return createDynamicStruct(columns, values)
 }

@@ -67,7 +67,7 @@ func main() {
 
 	execSQL("INSERT INTO Customers (CustomerName, ContactName, Address, City, PostalCode, Country) VALUES ('Cardinal', 'Tom B. Erichsen', 'Skagen 21', 'Stavanger', '4006', 'Norway');")
 	// Example usage
-	execSQL("SELECT * FROM Customer WHERE CustomerName = 'Cardinal'")
+	execSQL("SELECT * FROM Customer WHERE CustomerName = 'Cardinal' AND City = Stavange;")
 
 	// Prevent the program from exiting
 	select {}
