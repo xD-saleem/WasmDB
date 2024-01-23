@@ -52,7 +52,7 @@ func getColumnNames(stmt sqlparser.Statement) ([]string, error) {
 			switch e := expr.(type) {
 			case *sqlparser.StarExpr:
 				// Handle the case where * is used to select all columns
-				return []string{"*"}, nil
+				columnNames = append(columnNames, "*")
 			case *sqlparser.AliasedExpr:
 				// Extract column name
 				colName := e.Expr.(*sqlparser.ColName).Name.String()
@@ -167,22 +167,27 @@ func (ds *DatabaseService) execAction(action *Action) {
 	case "SELECT":
 		fmt.Println("Executing SELECT action:", action)
 
-		var foundNodes = make(map[string]int)
+		if action.ColumnNames[0] == "*" {
+			// Print all columns
+			ds.Btree.Ascend(func(item btree.Item) bool {
+				node := item.(Node)
+				fmt.Println(node.val)
+				return true
+			})
+			return
+		}
 
+		var foundNodes = make(map[string]int)
 		var foundNodes2 []Node
 
 		valueToFind := action.Conditions
 		sv := getStructValues(valueToFind[0])
-
-		// Iterate over the tree
-
 		mapSize := len(sv)
 
+		// Iterate over the tree
 		ds.Btree.Ascend(func(item btree.Item) bool {
 			node := item.(Node)
-
 			for k, v := range sv {
-				fmt.Println("k", k, "v", v, "= ", node.val[k])
 				if v == node.val[k] {
 					foundNodes[k] = foundNodes[k] + 1
 					foundNodes2 = append(foundNodes2, node)

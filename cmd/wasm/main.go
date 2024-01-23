@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"syscall/js"
 
 	"github.com/google/btree"
 	"github.com/xwb1989/sqlparser"
@@ -45,7 +46,6 @@ func (a Node) Less(b btree.Item) bool {
 func (ds *DatabaseService) execSql(sql string) {
 	stmt, err := sqlparser.Parse(sql)
 	if err != nil {
-		// Handle error
 		fmt.Println("Error parsing SQL:", err)
 	}
 
@@ -60,13 +60,29 @@ func main() {
 	treePtr := btree.New(2)
 	ds := NewDatabaseService(treePtr)
 
-	execSQL := func(query string) {
+	execSQL := js.FuncOf(func(this js.Value, p []js.Value) interface{} {
+		// Ensure that the function is called with at least one argument
+		if len(p) < 1 {
+			return nil
+		}
+
+		// Get the SQL query from the first argument
+		query := p[0].String()
+
+		// Call the execSql method with the query
 		ds.execSql(query)
-	}
-	execSQL("INSERT INTO Customers (CustomerName, ContactName, Address, City, PostalCode, Country) VALUES ('Cardinal', 'Tom B. Erichsen', 'Skagen 21', 'Stavanger', '4006', 'Norway');")
+
+		// Return nil or an appropriate value based on your requirements
+		return nil
+	})
+
+	// Expose execSQL to JavaScript
+	js.Global().Set("execSQL", execSQL)
 
 	// Example usage
-	execSQL("SELECT * FROM Customer WHERE CustomerName = 'Cardinal';")
+	// execSQL("INSERT INTO Customers (CustomerName, ContactName, Address, City, PostalCode, Country) VALUES ('Cardinal', 'Tom B. Erichsen', 'Skagen 21', 'Stavanger', '4006', 'Norway');")
+
+	// execSQL("SELECT * FROM Customer")
 
 	// Prevent the program from exiting
 	select {}
