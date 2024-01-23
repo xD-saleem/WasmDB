@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/google/btree"
+	"github.com/google/uuid"
 	"github.com/xwb1989/sqlparser"
 )
 
@@ -165,10 +166,7 @@ func (ds *DatabaseService) buildAction(stmt sqlparser.Statement) *Action {
 func (ds *DatabaseService) execAction(action *Action) {
 	switch action.Type {
 	case "SELECT":
-		fmt.Println("Executing SELECT action:", action)
-
 		if action.ColumnNames[0] == "*" {
-			// Print all columns
 			ds.Btree.Ascend(func(item btree.Item) bool {
 				node := item.(Node)
 				fmt.Println(node.val)
@@ -177,8 +175,8 @@ func (ds *DatabaseService) execAction(action *Action) {
 			return
 		}
 
-		var foundNodes = make(map[string]int)
-		var foundNodes2 []Node
+		var foundMap = make(map[string]int)
+		var foundNode []Node
 
 		valueToFind := action.Conditions
 		sv := getStructValues(valueToFind[0])
@@ -189,26 +187,24 @@ func (ds *DatabaseService) execAction(action *Action) {
 			node := item.(Node)
 			for k, v := range sv {
 				if v == node.val[k] {
-					foundNodes[k] = foundNodes[k] + 1
-					foundNodes2 = append(foundNodes2, node)
+					foundMap[k] = foundMap[k] + 1
+					foundNode = append(foundNode, node)
 				}
 			}
 			return true
 		})
 
 		// Check if any nodes were found
-		if len(foundNodes) == mapSize {
-			fmt.Println("Found nodes:", foundNodes2)
+		if len(foundMap) == mapSize {
+			fmt.Println("Found nodes:", foundNode)
 		} else {
 			fmt.Println("No nodes found with the specified value.")
 		}
 
 	case "INSERT":
-		fmt.Println("Executing INSERT action:", action)
-		s := createDynamicStruct(action.ColumnNames, action.Values)
-
 		// Inserting into the tree
-		ds.Btree.ReplaceOrInsert(Node{Id: 1, val: s})
+		s := createDynamicStruct(action.ColumnNames, action.Values)
+		ds.Btree.ReplaceOrInsert(Node{Id: int(uuid.New().ID()), val: s})
 	case "DELETE":
 	case "UPDATE":
 	default:
