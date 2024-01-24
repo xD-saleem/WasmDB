@@ -198,8 +198,8 @@ func (ds *DatabaseService) buildAction(stmt sqlparser.Statement) *Action {
 		return buildSelectAction(stmt)
 	case *sqlparser.Insert:
 		return buildInsertAction(stmt)
-	case *sqlparser.Delete:
-		return buildDeleteAction(stmt)
+	// case *sqlparser.Delete:
+	// return buildDeleteAction(stmt)
 	default:
 		fmt.Println("Unsupported statement type")
 		return nil
@@ -249,11 +249,11 @@ func (ds *DatabaseService) execAction(action *Action) {
 		s := createDynamicStruct(action.ColumnNames, action.Values)
 		ds.Btree.ReplaceOrInsert(Node{Id: int(uuid.New().ID()), val: s})
 	case "DELETE":
-		s := createDynamicStruct(action.ColumnNames, action.Values)
-		ds.Btree.Delete(Node{val: s})
+		// s := createDynamicStruct(action.ColumnNames, action.Values)
+		// ds.Btree.Delete(Node{val: s})
 	case "UPDATE":
-		s := createDynamicStruct(action.ColumnNames, action.Values)
-		ds.Btree.ReplaceOrInsert(Node{Id: int(uuid.New().ID()), val: s})
+		// s := createDynamicStruct(action.ColumnNames, action.Values)
+		// ds.Btree.ReplaceOrInsert(Node{Id: int(uuid.New().ID()), val: s})
 	default:
 		fmt.Println("Unsupported action type")
 	}
