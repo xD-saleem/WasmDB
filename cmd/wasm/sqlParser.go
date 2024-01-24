@@ -39,6 +39,9 @@ func getTableName(stmt sqlparser.Statement) (string, error) {
 	case *sqlparser.Insert:
 		tableName := sqlparser.String(s.Table)
 		return tableName, nil
+	case *sqlparser.Delete:
+		tableName := sqlparser.String(s.Targets)
+		return tableName, nil
 	default:
 		return "", fmt.Errorf("Unsupported statement type")
 	}
@@ -47,6 +50,7 @@ func getTableName(stmt sqlparser.Statement) (string, error) {
 func getColumnNames(stmt sqlparser.Statement) ([]string, error) {
 	switch s := stmt.(type) {
 	case *sqlparser.Select:
+		fmt.Println("SELECT")
 		var columnNames []string
 		// Iterate over the SELECT clause
 		for _, expr := range s.SelectExprs {
@@ -62,8 +66,17 @@ func getColumnNames(stmt sqlparser.Statement) ([]string, error) {
 				return nil, fmt.Errorf("Unsupported expression type in SELECT clause")
 			}
 		}
+	case *sqlparser.Delete:
+		fmt.Println("DELETE")
+		var columnNames []string
+		for _, expr := range s.Targets {
+			colName := sqlparser.String(expr)
+			columnNames = append(columnNames, colName)
+		}
 		return columnNames, nil
+
 	case *sqlparser.Insert:
+		fmt.Println("INSERT")
 		var columnNames []string
 		// Iterate over the column getColumnNames
 		for _, col := range s.Columns {
@@ -74,9 +87,9 @@ func getColumnNames(stmt sqlparser.Statement) ([]string, error) {
 	default:
 		return nil, fmt.Errorf("Unsupported statement type")
 	}
-}
 
-// ############# SELECT #############
+	return nil, nil
+}
 
 func buildSelectAction(stmt sqlparser.Statement) *Action {
 	// Handle SELECT statement
@@ -99,14 +112,42 @@ func buildSelectAction(stmt sqlparser.Statement) *Action {
 
 	tableName, err := getTableName(s)
 	if err != nil {
-		// Handle error
 		fmt.Println("Error getting table name:", err)
 		return nil
 	}
 
 	columnNames, err := getColumnNames(s)
 	if err != nil {
-		// Handle error
+		fmt.Println("Error getting column names:", err)
+		return nil
+	}
+
+	myAction.TableNames = append(myAction.TableNames, tableName)
+	myAction.ColumnNames = append(myAction.ColumnNames, columnNames...)
+
+	return &myAction
+}
+
+func buildDeleteAction(stmt sqlparser.Statement) *Action {
+	myAction := Action{}
+	myAction.Type = "DELETE"
+
+	// Extracting conditions
+	s := stmt.(*sqlparser.Delete)
+
+	if s.Where != nil {
+		condition := sqlparser.String(s.Where.Expr)
+		myAction.Conditions = append(myAction.Conditions, condition)
+	}
+
+	tableName, err := getTableName(s)
+	if err != nil {
+		fmt.Println("Error getting table name:", err)
+		return nil
+	}
+
+	columnNames, err := getColumnNames(s)
+	if err != nil {
 		fmt.Println("Error getting column names:", err)
 		return nil
 	}
@@ -157,6 +198,8 @@ func (ds *DatabaseService) buildAction(stmt sqlparser.Statement) *Action {
 		return buildSelectAction(stmt)
 	case *sqlparser.Insert:
 		return buildInsertAction(stmt)
+	case *sqlparser.Delete:
+		return buildDeleteAction(stmt)
 	default:
 		fmt.Println("Unsupported statement type")
 		return nil
@@ -206,7 +249,11 @@ func (ds *DatabaseService) execAction(action *Action) {
 		s := createDynamicStruct(action.ColumnNames, action.Values)
 		ds.Btree.ReplaceOrInsert(Node{Id: int(uuid.New().ID()), val: s})
 	case "DELETE":
+		s := createDynamicStruct(action.ColumnNames, action.Values)
+		ds.Btree.Delete(Node{val: s})
 	case "UPDATE":
+		s := createDynamicStruct(action.ColumnNames, action.Values)
+		ds.Btree.ReplaceOrInsert(Node{Id: int(uuid.New().ID()), val: s})
 	default:
 		fmt.Println("Unsupported action type")
 	}
