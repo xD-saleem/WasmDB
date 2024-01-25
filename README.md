@@ -30,5 +30,6 @@ Make sure you have the following installed on your machine:
 
 4. Navigate to localhost:8000
 
+![image](https://github.com/xD-saleem/WasmDB/assets/25384958/1e987c15-dae4-400b-8b03-9b9fa07a769d)
 
 
